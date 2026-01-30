@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <settings>
   <category label="32000">
-    <setting label="32001" type="text" id="webhook_url" default=""/>
-    <setting label="32002" type="lsep" id="connection_status"/>
-    <setting label="32003" type="action" id="test_connection" action="RunPlugin(plugin://script.bingebase/?action=test_connection)"/>
+    <setting label="32001" type="lsep" id="connection_status"/>
+    <setting label="32002" type="action" id="authorize" action="RunScript(script.bingebase,authorize)"/>
+    <setting label="32003" type="action" id="disconnect" action="RunScript(script.bingebase,disconnect)"/>
+    <setting type="text" id="access_token" visible="false" default=""/>
+    <setting type="text" id="webhook_url" visible="false" default=""/>
   </category>
 
   <category label="32010">
@@ -21,7 +23,7 @@
     <setting label="32024" type="lsep"/>
     <setting label="32025" type="bool" id="sync_kodi_to_bingebase" default="true"/>
     <setting label="32026" type="bool" id="sync_bingebase_to_kodi" default="true"/>
-    <setting label="32027" type="action" id="sync_now" action="RunPlugin(plugin://script.bingebase/?action=sync_now)"/>
+    <setting label="32027" type="action" id="sync_now" action="RunScript(script.bingebase,sync_now)"/>
     <setting label="32028" type="lsep" id="last_sync"/>
   </category>
 </settings>

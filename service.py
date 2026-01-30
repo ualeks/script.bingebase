@@ -1,10 +1,8 @@
+import sys
 import time
 
 import xbmc
 
-from resources.lib.api import BingebaseAPI
-from resources.lib.player import BingebasePlayer
-from resources.lib.sync import do_sync
 from resources.lib.utils import (
     get_setting, get_setting_bool, get_sync_interval_hours,
     log, log_debug, log_error, notify, reload_addon
@@ -19,9 +17,10 @@ class BingebaseMonitor(xbmc.Monitor):
         self.service = service
 
     def onSettingsChanged(self):
-        log_debug('Settings changed, reloading')
+        log('Settings changed, reloading')
         reload_addon()
         self.service.reload_api()
+        self.service.check_token_changed()
 
     def onScanFinished(self, library):
         if library == 'video' and get_setting_bool('sync_on_library_update'):
@@ -36,34 +35,40 @@ class BingebaseService:
         self.monitor = None
         self.last_sync_time = 0
         self._sync_requested = False
+        self._last_known_token = ''
 
     def reload_api(self):
-        webhook_url = get_setting('webhook_url')
-        if webhook_url:
-            self.api = BingebaseAPI(webhook_url)
+        from resources.lib.api import BingebaseAPI
+        token = get_setting('access_token')
+        if token:
+            self.api = BingebaseAPI()
             if self.player:
                 self.player.api = self.api
         else:
             self.api = None
+
+    def check_token_changed(self):
+        token = get_setting('access_token')
+        if token and token != self._last_known_token:
+            log('Token changed, triggering sync')
+            self._last_known_token = token
+            self.trigger_sync()
 
     def trigger_sync(self):
         self._sync_requested = True
 
     def _do_sync(self):
         if not self.api:
-            log_debug('Skipping sync — webhook URL not configured')
+            log_debug('Skipping sync — not connected')
             return
         try:
+            from resources.lib.sync import do_sync
             do_sync(self.api)
             self.last_sync_time = time.time()
         except Exception as e:
             log_error('Sync error: {}'.format(str(e)))
 
-    def _should_sync(self):
-        if self._sync_requested:
-            self._sync_requested = False
-            return True
-
+    def _should_scheduled_sync(self):
         interval_hours = get_sync_interval_hours()
         if interval_hours == 0:
             return False
@@ -72,32 +77,86 @@ class BingebaseService:
         return elapsed >= (interval_hours * 3600)
 
     def run(self):
+        from resources.lib.player import BingebasePlayer
+        from resources.lib.auth import is_connected, start_authorization
+
         log('Bingebase service starting')
 
         self.monitor = BingebaseMonitor(self)
+        self._last_known_token = get_setting('access_token')
         self.reload_api()
+
+        # Auto-prompt auth if not connected
+        if not is_connected():
+            log('Not connected — showing authorization dialog')
+            start_authorization()
+            reload_addon()
+            self._last_known_token = get_setting('access_token')
+            self.reload_api()
 
         if self.api:
             self.player = BingebasePlayer(self.api)
         else:
             self.player = BingebasePlayer(api=None)
-            log('Webhook URL not configured — scrobbling disabled')
+            log('Not connected — scrobbling disabled')
 
         # Sync on startup
         if get_setting_bool('sync_on_startup') and self.api:
             self._do_sync()
 
         # Main service loop
+        sync_check = 0
         while not self.monitor.abortRequested():
-            if self._should_sync():
+            # Update playback position every 5 seconds
+            self.player.update_time()
+
+            # Check for triggered sync requests immediately
+            if self._sync_requested:
+                self._sync_requested = False
                 self._do_sync()
 
-            if self.monitor.waitForAbort(POLL_INTERVAL):
+            # Check scheduled sync every POLL_INTERVAL seconds
+            sync_check += 5
+            if sync_check >= POLL_INTERVAL:
+                sync_check = 0
+                if self._should_scheduled_sync():
+                    self._do_sync()
+
+            if self.monitor.waitForAbort(5):
                 break
 
         log('Bingebase service stopped')
 
 
-if __name__ == '__main__':
+def main():
+    # Check if called with action argument (from settings buttons)
+    if len(sys.argv) > 1:
+        action = sys.argv[1]
+
+        if action == 'authorize':
+            from resources.lib.auth import start_authorization
+            start_authorization()
+            return
+
+        if action == 'disconnect':
+            from resources.lib.auth import disconnect
+            disconnect()
+            return
+
+        if action == 'sync_now':
+            from resources.lib.auth import is_connected
+            if is_connected():
+                from resources.lib.api import BingebaseAPI
+                from resources.lib.sync import do_sync
+                do_sync(BingebaseAPI())
+            else:
+                notify('Not connected to Bingebase')
+            return
+
+    # Normal service startup
     service = BingebaseService()
     service.run()
+
+
+if __name__ == '__main__':
+    main()

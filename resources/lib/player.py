@@ -1,7 +1,8 @@
 import xbmc
 
 from resources.lib.utils import (
-    get_setting_bool, get_setting_int, log, log_debug, log_error, notify
+    get_setting_bool, get_setting_int, get_show_uniqueids,
+    log, log_debug, log_error, notify
 )
 
 
@@ -12,17 +13,22 @@ class BingebasePlayer(xbmc.Player):
         self._playing = False
         self._media_info = None
         self._total_time = 0
+        self._last_time = 0
 
     def onAVStarted(self):
+        log('onAVStarted fired')
+
         if not get_setting_bool('scrobble_enabled'):
+            log('Scrobbling disabled, ignoring')
             return
 
         try:
             info_tag = self.getVideoInfoTag()
             media_type = info_tag.getMediaType()
+            log('Media type: "{}", title: "{}"'.format(media_type, info_tag.getTitle()))
 
             if media_type not in ('movie', 'episode'):
-                log_debug('Ignoring non-video media type: {}'.format(media_type))
+                log('Ignoring non-video media type: {}'.format(media_type))
                 return
 
             if media_type == 'movie' and not get_setting_bool('scrobble_movies'):
@@ -31,6 +37,7 @@ class BingebasePlayer(xbmc.Player):
                 return
 
             self._total_time = self.getTotalTime()
+            self._last_time = 0
             self._media_info = self._build_media_info(info_tag, media_type)
             self._playing = True
 
@@ -40,18 +47,15 @@ class BingebasePlayer(xbmc.Player):
             self._playing = False
 
     def onPlayBackStopped(self):
+        log('onPlayBackStopped fired, _playing={}, last_time={}'.format(self._playing, self._last_time))
         if not self._playing or self._media_info is None:
             return
 
-        try:
-            current_time = self.getTime()
-        except RuntimeError:
-            current_time = 0
-
-        self._handle_scrobble('stop', current_time)
+        self._handle_scrobble('stop', self._last_time)
         self._reset()
 
     def onPlayBackEnded(self):
+        log('onPlayBackEnded fired, _playing={}'.format(self._playing))
         if not self._playing or self._media_info is None:
             return
 
@@ -59,10 +63,22 @@ class BingebasePlayer(xbmc.Player):
         self._reset()
 
     def onPlayBackPaused(self):
-        log_debug('Playback paused')
+        self._update_time()
+        log_debug('Playback paused at {:.0f}s'.format(self._last_time))
 
     def onPlayBackResumed(self):
         log_debug('Playback resumed')
+
+    def update_time(self):
+        """Call periodically from service loop to track playback position."""
+        if self._playing:
+            self._update_time()
+
+    def _update_time(self):
+        try:
+            self._last_time = self.getTime()
+        except RuntimeError:
+            pass
 
     def _handle_scrobble(self, event, current_time):
         if self._total_time <= 0:
@@ -110,9 +126,18 @@ class BingebasePlayer(xbmc.Player):
             info['season'] = info_tag.getSeason()
             info['episode'] = info_tag.getEpisode()
 
+            # Get show-level IDs from parent TV show
+            show_uids = get_show_uniqueids(info_tag.getDbId())
+            info['showUniqueIds'] = {
+                'tmdb': show_uids.get('tmdb', ''),
+                'tvdb': show_uids.get('tvdb', ''),
+                'imdb': show_uids.get('imdb', ''),
+            }
+
         return info
 
     def _reset(self):
         self._playing = False
         self._media_info = None
         self._total_time = 0
+        self._last_time = 0

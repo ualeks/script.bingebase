@@ -59,3 +59,42 @@ SYNC_INTERVALS = {
 def get_sync_interval_hours():
     index = get_setting_int('sync_interval')
     return SYNC_INTERVALS.get(index, 24)
+
+
+import json
+
+
+def jsonrpc(method, params=None):
+    request = {'jsonrpc': '2.0', 'method': method, 'id': 1}
+    if params:
+        request['params'] = params
+    response = json.loads(xbmc.executeJSONRPC(json.dumps(request)))
+    if 'error' in response:
+        log_error('JSON-RPC error: {}'.format(response['error']))
+        return None
+    return response.get('result')
+
+
+def get_show_uniqueids(episode_db_id):
+    """Get the parent TV show's uniqueids for an episode."""
+    # First get the tvshowid from the episode
+    result = jsonrpc('VideoLibrary.GetEpisodeDetails', {
+        'episodeid': episode_db_id,
+        'properties': ['tvshowid'],
+    })
+    if not result or 'episodedetails' not in result:
+        return {}
+
+    tvshow_id = result['episodedetails'].get('tvshowid')
+    if not tvshow_id:
+        return {}
+
+    # Then get the show's uniqueids
+    result = jsonrpc('VideoLibrary.GetTVShowDetails', {
+        'tvshowid': tvshow_id,
+        'properties': ['uniqueid'],
+    })
+    if not result or 'tvshowdetails' not in result:
+        return {}
+
+    return result['tvshowdetails'].get('uniqueid', {})

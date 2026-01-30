@@ -15,23 +15,24 @@ msgstr ""
 "Language: en_GB\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-# Settings categories
+# Connection settings
 msgctxt "#32000"
 msgid "Connection"
 msgstr ""
 
 msgctxt "#32001"
-msgid "Webhook URL"
+msgid "Status: Not connected"
 msgstr ""
 
 msgctxt "#32002"
-msgid "Connection status"
+msgid "Authorize Bingebase"
 msgstr ""
 
 msgctxt "#32003"
-msgid "Test connection"
+msgid "Disconnect"
 msgstr ""
 
+# Scrobbling settings
 msgctxt "#32010"
 msgid "Scrobbling"
 msgstr ""
@@ -56,6 +57,7 @@ msgctxt "#32015"
 msgid "Show notification on scrobble"
 msgstr ""
 
+# Sync settings
 msgctxt "#32020"
 msgid "Sync"
 msgstr ""
@@ -123,11 +125,11 @@ msgid "Connection failed"
 msgstr ""
 
 msgctxt "#32043"
-msgid "Connection successful"
+msgid "Successfully connected!"
 msgstr ""
 
 msgctxt "#32044"
-msgid "Webhook URL not configured"
+msgid "Authorization expired"
 msgstr ""
 
 msgctxt "#32045"
@@ -140,4 +142,8 @@ msgstr ""
 
 msgctxt "#32047"
 msgid "Export complete: {0} items marked as watched"
+msgstr ""
+
+msgctxt "#32048"
+msgid "Disconnected"
 msgstr ""

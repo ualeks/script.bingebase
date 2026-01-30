@@ -51,4 +51,4 @@ Copy or symlink the `script.bingebase` folder into your Kodi addons directory:
 
 ## License
 
-MIT — see [LICENSE.txt](LICENSE.txt).
+GPL-2.0-or-later — see [LICENSE.txt](LICENSE.txt).

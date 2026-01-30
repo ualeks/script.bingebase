@@ -6,7 +6,7 @@
   <extension point="xbmc.service" library="service.py" start="startup"/>
   <extension point="xbmc.addon.metadata">
     <platform>all</platform>
-    <license>MIT</license>
+    <license>GPL-2.0-or-later</license>
     <website>https://bingebase.com</website>
     <source>https://github.com/ualeks/script.bingebase</source>
     <summary lang="en_GB">Track movies and TV shows to Bingebase</summary>

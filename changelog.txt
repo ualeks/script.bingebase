@@ -1,0 +1,6 @@
+v1.0.0 (2025-01-30)
+- Initial release
+- Scrobbling for movies and TV episodes
+- Two-way sync with Bingebase
+- Device authorization flow
+- Scheduled background sync

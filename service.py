@@ -5,7 +5,7 @@ import xbmc
 
 from resources.lib.utils import (
     get_setting, get_setting_bool, get_sync_interval_hours,
-    log, log_debug, log_error, notify, reload_addon
+    log, log_error, notify, reload_addon
 )
 
 POLL_INTERVAL = 300  # 5 minutes
@@ -59,14 +59,13 @@ class BingebaseService:
 
     def _do_sync(self):
         if not self.api:
-            log_debug('Skipping sync — not connected')
             return
         try:
             from resources.lib.sync import do_sync
             do_sync(self.api)
             self.last_sync_time = time.time()
-        except Exception as e:
-            log_error('Sync error: {}'.format(str(e)))
+        except Exception:
+            log_error('Sync error')
 
     def _should_scheduled_sync(self):
         interval_hours = get_sync_interval_hours()

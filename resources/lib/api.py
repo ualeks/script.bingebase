@@ -3,9 +3,7 @@ from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 from urllib.error import URLError, HTTPError
 
-from resources.lib.utils import get_setting, log, log_debug, log_error
-
-BASE_URL = 'http://localhost:3000'
+from resources.lib.utils import get_setting, log_error, BASE_URL
 
 
 class BingebaseAPI:
@@ -30,10 +28,10 @@ class BingebaseAPI:
                 return json.loads(response_body)
             return None
         except HTTPError as e:
-            log_error('HTTP error {}: {} - {}'.format(e.code, url, e.read().decode('utf-8', errors='replace')))
+            log_error('HTTP error {}'.format(e.code))
             raise
         except URLError as e:
-            log_error('URL error: {} - {}'.format(url, e.reason))
+            log_error('URL error: {}'.format(e.reason))
             raise
 
     def is_connected(self):
@@ -42,18 +40,15 @@ class BingebaseAPI:
     def scrobble(self, payload):
         if not self.webhook_url:
             return None
-        log_debug('Scrobbling: {}'.format(json.dumps(payload)))
         return self._request(self.webhook_url, data=payload, auth=False)
 
     def import_history(self, movies, episodes):
         url = '{}/api/v1/kodi/import'.format(BASE_URL)
         payload = {'movies': movies, 'episodes': episodes}
-        log('Importing {} movies, {} episodes to Bingebase'.format(len(movies), len(episodes)))
         return self._request(url, data=payload)
 
     def export_history(self, since=None):
         url = '{}/api/v1/kodi/export'.format(BASE_URL)
         if since:
             url += '?{}'.format(urlencode({'since': since}))
-        log('Fetching watch history from Bingebase')
         return self._request(url)

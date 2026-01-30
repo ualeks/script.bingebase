@@ -2,7 +2,7 @@ import xbmc
 
 from resources.lib.utils import (
     get_setting_bool, get_setting_int, get_show_uniqueids,
-    log, log_debug, log_error, notify
+    log, log_error, notify
 )
 
 
@@ -16,19 +16,14 @@ class BingebasePlayer(xbmc.Player):
         self._last_time = 0
 
     def onAVStarted(self):
-        log('onAVStarted fired')
-
         if not get_setting_bool('scrobble_enabled'):
-            log('Scrobbling disabled, ignoring')
             return
 
         try:
             info_tag = self.getVideoInfoTag()
             media_type = info_tag.getMediaType()
-            log('Media type: "{}", title: "{}"'.format(media_type, info_tag.getTitle()))
 
             if media_type not in ('movie', 'episode'):
-                log('Ignoring non-video media type: {}'.format(media_type))
                 return
 
             if media_type == 'movie' and not get_setting_bool('scrobble_movies'):
@@ -40,14 +35,11 @@ class BingebasePlayer(xbmc.Player):
             self._last_time = 0
             self._media_info = self._build_media_info(info_tag, media_type)
             self._playing = True
-
-            log_debug('Playback started: {}'.format(self._media_info.get('title', 'Unknown')))
         except RuntimeError:
             log_error('Failed to get video info on playback start')
             self._playing = False
 
     def onPlayBackStopped(self):
-        log('onPlayBackStopped fired, _playing={}, last_time={}'.format(self._playing, self._last_time))
         if not self._playing or self._media_info is None:
             return
 
@@ -55,7 +47,6 @@ class BingebasePlayer(xbmc.Player):
         self._reset()
 
     def onPlayBackEnded(self):
-        log('onPlayBackEnded fired, _playing={}'.format(self._playing))
         if not self._playing or self._media_info is None:
             return
 
@@ -64,10 +55,9 @@ class BingebasePlayer(xbmc.Player):
 
     def onPlayBackPaused(self):
         self._update_time()
-        log_debug('Playback paused at {:.0f}s'.format(self._last_time))
 
     def onPlayBackResumed(self):
-        log_debug('Playback resumed')
+        pass
 
     def update_time(self):
         """Call periodically from service loop to track playback position."""
@@ -88,7 +78,6 @@ class BingebasePlayer(xbmc.Player):
         threshold = get_setting_int('scrobble_threshold')
 
         if event == 'stop' and percent < threshold:
-            log_debug('Below threshold ({:.1f}% < {}%), not scrobbling'.format(percent, threshold))
             return
 
         payload = dict(self._media_info)
@@ -102,7 +91,7 @@ class BingebasePlayer(xbmc.Player):
         try:
             self.api.scrobble(payload)
             title = self._media_info.get('title', 'Unknown')
-            log('Scrobbled: {} ({:.1f}%)'.format(title, percent))
+            log('Scrobbled: {}'.format(title))
 
             if get_setting_bool('scrobble_notify'):
                 notify('Scrobbled: {}'.format(title))

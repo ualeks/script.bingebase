@@ -6,9 +6,8 @@ from urllib.error import URLError, HTTPError
 import xbmc
 import xbmcgui
 
-from resources.lib.utils import get_setting, set_setting, log, log_error, notify
+from resources.lib.utils import get_setting, set_setting, log, log_error, notify, BASE_URL
 
-BASE_URL = 'http://localhost:3000'
 DEVICE_CODE_URL = '{}/api/v1/kodi/device/code'.format(BASE_URL)
 DEVICE_TOKEN_URL = '{}/api/v1/kodi/device/token'.format(BASE_URL)
 
@@ -28,7 +27,7 @@ def start_authorization():
         response = urlopen(req, timeout=15)
         data = json.loads(response.read().decode('utf-8'))
     except (HTTPError, URLError, ValueError) as e:
-        log_error('Failed to request device code: {}'.format(e))
+        log_error('Failed to request device code')
         notify('Failed to connect to Bingebase', icon=xbmcgui.NOTIFICATION_ERROR)
         return False
 

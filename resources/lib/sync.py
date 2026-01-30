@@ -1,27 +1,14 @@
-import json
 import time
 
-import xbmc
-
 from resources.lib.utils import (
-    get_setting_bool, set_setting, jsonrpc, get_show_uniqueids,
-    log, log_debug, log_error, notify
+    get_setting, get_setting_bool, set_setting, jsonrpc,
+    get_show_uniqueids_by_tvshowid, log_error, notify
 )
 
 
 def _to_kodi_datetime(iso_string):
     """Convert ISO 8601 (e.g. '2025-08-08T18:53:08Z') to Kodi format ('2025-08-08 18:53:08')."""
     return iso_string.replace('T', ' ').replace('Z', '')
-
-
-def get_show_uniqueids_by_tvshowid(tvshow_id):
-    result = jsonrpc('VideoLibrary.GetTVShowDetails', {
-        'tvshowid': tvshow_id,
-        'properties': ['uniqueid'],
-    })
-    if result and 'tvshowdetails' in result:
-        return result['tvshowdetails'].get('uniqueid', {})
-    return {}
 
 
 def get_watched_movies():
@@ -74,10 +61,10 @@ def _format_movie_for_import(movie):
 
 def _format_episode_for_import(episode, show_uids_cache):
     # Look up show-level IDs, using cache to avoid repeated JSON-RPC calls
-    tvshow_id = episode.get('tvshowid')
-    if tvshow_id and tvshow_id not in show_uids_cache:
-        show_uids_cache[tvshow_id] = get_show_uniqueids_by_tvshowid(tvshow_id)
-    show_uids = show_uids_cache.get(tvshow_id, {})
+    tvshowid = episode.get('tvshowid')
+    if tvshowid and tvshowid not in show_uids_cache:
+        show_uids_cache[tvshowid] = get_show_uniqueids_by_tvshowid(tvshowid)
+    show_uids = show_uids_cache.get(tvshowid, {})
 
     return {
         'title': episode.get('title', ''),
@@ -104,11 +91,9 @@ def import_kodi_to_bingebase(api):
     formatted_episodes = [_format_episode_for_import(e, show_uids_cache) for e in episodes]
 
     if not formatted_movies and not formatted_episodes:
-        log('Nothing to import — no watched items in Kodi library')
         return 0, 0
 
     api.import_history(formatted_movies, formatted_episodes)
-    log('Imported {} movies, {} episodes to Bingebase'.format(len(formatted_movies), len(formatted_episodes)))
     return len(formatted_movies), len(formatted_episodes)
 
 
@@ -142,111 +127,69 @@ def _find_kodi_item(kodi_items, uniqueids):
 
 def export_bingebase_to_kodi(api, since=None):
     data = api.export_history(since=since)
-    log('Export API response: {}'.format(json.dumps(data) if data else 'None'))
 
     if not data:
-        log('No new watch history from Bingebase')
         return 0
 
     bb_movies = data.get('movies', [])
     bb_episodes = data.get('episodes', [])
-    log('Bingebase returned {} movies, {} episodes'.format(len(bb_movies), len(bb_episodes)))
-
     kodi_movies = get_all_movies()
     kodi_episodes = get_all_episodes()
-    log('Kodi library has {} movies, {} episodes'.format(len(kodi_movies), len(kodi_episodes)))
-
-    if kodi_episodes:
-        log('Sample Kodi episode: {}'.format(json.dumps(kodi_episodes[0])))
-    if bb_episodes:
-        log('Sample Bingebase episode: {}'.format(json.dumps(bb_episodes[0])))
-
     marked_count = 0
 
     for movie in bb_movies:
         uids = _extract_uniqueids(movie)
         match = _find_kodi_item(kodi_movies, uids)
-        if match:
-            if match.get('playcount', 0) == 0:
-                params = {
-                    'movieid': match['movieid'],
-                    'playcount': 1,
-                }
-                watched_at = movie.get('watched_at', '')
-                if watched_at:
-                    params['lastplayed'] = _to_kodi_datetime(watched_at)
-                jsonrpc('VideoLibrary.SetMovieDetails', params)
-                log('Marked movie as watched: {}'.format(match.get('title', '')))
-                marked_count += 1
-            else:
-                log('Movie already watched in Kodi: {}'.format(match.get('title', '')))
-        else:
-            log('No Kodi match for Bingebase movie: {} (ids: {})'.format(
-                movie.get('title', '?'), json.dumps(uids)))
+        if match and match.get('playcount', 0) == 0:
+            params = {
+                'movieid': match['movieid'],
+                'playcount': 1,
+            }
+            watched_at = movie.get('watched_at', '')
+            if watched_at:
+                params['lastplayed'] = _to_kodi_datetime(watched_at)
+            jsonrpc('VideoLibrary.SetMovieDetails', params)
+            marked_count += 1
 
     for episode in bb_episodes:
         uids = _extract_uniqueids(episode)
         match = _find_kodi_item(kodi_episodes, uids)
-        if match:
-            if match.get('playcount', 0) == 0:
-                params = {
-                    'episodeid': match['episodeid'],
-                    'playcount': 1,
-                }
-                watched_at = episode.get('watched_at', '')
-                if watched_at:
-                    params['lastplayed'] = _to_kodi_datetime(watched_at)
-                jsonrpc('VideoLibrary.SetEpisodeDetails', params)
-                log('Marked episode as watched: {} S{:02d}E{:02d}'.format(
-                    match.get('showtitle', ''), match.get('season', 0), match.get('episode', 0)
-                ))
-                marked_count += 1
-            else:
-                log('Episode already watched in Kodi: {} S{:02d}E{:02d}'.format(
-                    match.get('showtitle', ''), match.get('season', 0), match.get('episode', 0)
-                ))
-        else:
-            log('No Kodi match for Bingebase episode: {} S{}E{} (ids: {})'.format(
-                episode.get('tvShowTitle', '?'), episode.get('season', '?'),
-                episode.get('episode', '?'), json.dumps(uids)))
+        if match and match.get('playcount', 0) == 0:
+            params = {
+                'episodeid': match['episodeid'],
+                'playcount': 1,
+            }
+            watched_at = episode.get('watched_at', '')
+            if watched_at:
+                params['lastplayed'] = _to_kodi_datetime(watched_at)
+            jsonrpc('VideoLibrary.SetEpisodeDetails', params)
+            marked_count += 1
 
-    log('Marked {} items as watched in Kodi'.format(marked_count))
     return marked_count
 
 
 def do_sync(api):
-    log('Starting sync...')
     notify('Syncing...')
-
-    movie_count = 0
-    episode_count = 0
-    marked_count = 0
 
     try:
         if get_setting_bool('sync_kodi_to_bingebase'):
-            movie_count, episode_count = import_kodi_to_bingebase(api)
+            import_kodi_to_bingebase(api)
 
         last_sync = _get_last_sync_timestamp()
-        log('Last sync timestamp: {}'.format(last_sync or 'None (full sync)'))
 
         if get_setting_bool('sync_bingebase_to_kodi'):
-            marked_count = export_bingebase_to_kodi(api, since=last_sync)
+            export_bingebase_to_kodi(api, since=last_sync)
 
         _save_last_sync_timestamp()
-
-        log('Sync complete: {} movies, {} episodes imported; {} items marked watched'.format(
-            movie_count, episode_count, marked_count
-        ))
         notify('Sync complete')
 
-    except Exception as e:
-        log_error('Sync failed: {}'.format(str(e)))
+    except Exception:
+        log_error('Sync failed')
         import xbmcgui
         notify('Sync failed', icon=xbmcgui.NOTIFICATION_ERROR)
 
 
 def _get_last_sync_timestamp():
-    from resources.lib.utils import get_setting
     ts = get_setting('last_sync_timestamp')
     return ts if ts else None
 

@@ -8,7 +8,7 @@
     <platform>all</platform>
     <license>MIT</license>
     <website>https://bingebase.com</website>
-    <source>https://github.com/your-username/bingebase-kodi</source>
+    <source>https://github.com/ualeks/script.bingebase</source>
     <summary lang="en_GB">Track movies and TV shows to Bingebase</summary>
     <description lang="en_GB">Automatically scrobble what you watch and sync your watch history between Kodi and Bingebase.</description>
   </extension>

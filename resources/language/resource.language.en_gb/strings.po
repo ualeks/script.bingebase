@@ -5,7 +5,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: script.bingebase\n"
-"Report-Msgid-Bugs-To: https://github.com/your-username/bingebase-kodi\n"
+"Report-Msgid-Bugs-To: https://github.com/ualeks/script.bingebase\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: Bingebase\n"
 "Language-Team: English\n"

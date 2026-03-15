@@ -3,8 +3,11 @@
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
-  <extension point="xbmc.service" library="service.py" start="startup"/>
+  <extension point="xbmc.service" library="service.py"/>
   <extension point="xbmc.addon.metadata">
+    <assets>
+      <icon>icon.png</icon>
+    </assets>
     <platform>all</platform>
     <license>GPL-2.0-or-later</license>
     <website>https://bingebase.com</website>

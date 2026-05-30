@@ -40,12 +40,13 @@ def start_authorization():
 
 
 def _poll_for_authorization(device_code, user_code, expires_in, interval):
+    activate_host = BASE_URL.replace('https://', '').replace('http://', '').rstrip('/')
     dialog = xbmcgui.DialogProgress()
     dialog.create(
         'Bingebase',
-        'Go to [B]bingebase.com/activate[/B]\n\n'
+        'Go to [B]{}/activate[/B]\n\n'
         'Enter code: [B]{}[/B]\n\n'
-        'Waiting for authorization...'.format(user_code)
+        'Waiting for authorization...'.format(activate_host, user_code)
     )
 
     start_time = time.time()

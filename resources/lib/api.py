@@ -22,7 +22,7 @@ class BingebaseAPI:
         body = json.dumps(data).encode('utf-8') if data is not None else None
         req = Request(url, data=body, headers=headers, method=method)
         try:
-            response = urlopen(req, timeout=30)
+            response = urlopen(req, timeout=120)
             response_body = response.read().decode('utf-8')
             if response_body:
                 return json.loads(response_body)

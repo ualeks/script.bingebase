@@ -1,4 +1,9 @@
 import time
+import traceback
+
+# Cap items per import POST. Large first-syncs were timing out as a single
+# request — chunking keeps individual requests inside urlopen's 120s budget.
+IMPORT_CHUNK_SIZE = 500
 
 from resources.lib.utils import (
     get_setting, get_setting_bool, set_setting, jsonrpc,
@@ -11,9 +16,28 @@ def _to_kodi_datetime(iso_string):
     return iso_string.replace('T', ' ').replace('Z', '')
 
 
-def get_watched_movies():
+def _watched_filter(since_iso=None):
+    """Build VideoLibrary filter. Optionally narrow to items played after since_iso
+    (ISO 8601, e.g. '2026-05-09T18:46:43Z'). When since_iso is None, returns the
+    full 'playcount > 0' filter (initial sync)."""
+    played = {'field': 'playcount', 'operator': 'greaterthan', 'value': '0'}
+    if not since_iso:
+        return played
+    return {
+        'and': [
+            played,
+            {
+                'field': 'lastplayed',
+                'operator': 'greaterthan',
+                'value': _to_kodi_datetime(since_iso),
+            },
+        ]
+    }
+
+
+def get_watched_movies(since_iso=None):
     result = jsonrpc('VideoLibrary.GetMovies', {
-        'filter': {'field': 'playcount', 'operator': 'greaterthan', 'value': '0'},
+        'filter': _watched_filter(since_iso),
         'properties': ['title', 'year', 'playcount', 'lastplayed', 'uniqueid'],
     })
     if result and 'movies' in result:
@@ -21,9 +45,9 @@ def get_watched_movies():
     return []
 
 
-def get_watched_episodes():
+def get_watched_episodes(since_iso=None):
     result = jsonrpc('VideoLibrary.GetEpisodes', {
-        'filter': {'field': 'playcount', 'operator': 'greaterthan', 'value': '0'},
+        'filter': _watched_filter(since_iso),
         'properties': ['title', 'showtitle', 'season', 'episode', 'playcount', 'lastplayed', 'uniqueid', 'tvshowid'],
     })
     if result and 'episodes' in result:
@@ -82,9 +106,14 @@ def _format_episode_for_import(episode, show_uids_cache):
     }
 
 
-def import_kodi_to_bingebase(api):
-    movies = get_watched_movies()
-    episodes = get_watched_episodes()
+def _chunk(items, size):
+    for i in range(0, len(items), size):
+        yield items[i:i + size]
+
+
+def import_kodi_to_bingebase(api, since=None):
+    movies = get_watched_movies(since)
+    episodes = get_watched_episodes(since)
 
     formatted_movies = [_format_movie_for_import(m) for m in movies]
     show_uids_cache = {}
@@ -93,7 +122,11 @@ def import_kodi_to_bingebase(api):
     if not formatted_movies and not formatted_episodes:
         return 0, 0
 
-    api.import_history(formatted_movies, formatted_episodes)
+    for batch in _chunk(formatted_movies, IMPORT_CHUNK_SIZE):
+        api.import_history(batch, [])
+    for batch in _chunk(formatted_episodes, IMPORT_CHUNK_SIZE):
+        api.import_history([], batch)
+
     return len(formatted_movies), len(formatted_episodes)
 
 
@@ -172,10 +205,12 @@ def do_sync(api):
     notify('Syncing...')
 
     try:
-        if get_setting_bool('sync_kodi_to_bingebase'):
-            import_kodi_to_bingebase(api)
-
+        # Snapshot last-sync BEFORE either direction runs so import and export
+        # see the same cutoff. Saved only on full success below.
         last_sync = _get_last_sync_timestamp()
+
+        if get_setting_bool('sync_kodi_to_bingebase'):
+            import_kodi_to_bingebase(api, since=last_sync)
 
         if get_setting_bool('sync_bingebase_to_kodi'):
             export_bingebase_to_kodi(api, since=last_sync)
@@ -183,8 +218,9 @@ def do_sync(api):
         _save_last_sync_timestamp()
         notify('Sync complete')
 
-    except Exception:
-        log_error('Sync failed')
+    except Exception as e:
+        log_error('Sync failed: {}: {}'.format(type(e).__name__, e))
+        log_error(traceback.format_exc())
         import xbmcgui
         notify('Sync failed', icon=xbmcgui.NOTIFICATION_ERROR)
 

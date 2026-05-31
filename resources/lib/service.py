@@ -9,6 +9,12 @@ from resources.lib.utils import (
 )
 
 POLL_INTERVAL = 300  # 5 minutes
+# Kodi auto-scans the video library on startup. With sync_on_library_update
+# enabled, that scan's onScanFinished would fire a second sync immediately
+# after the sync_on_startup sync. Ignore library-scan triggers until the
+# service has been alive for this many seconds — after which onScanFinished
+# means a real user-initiated scan (added new media, etc.).
+LIBRARY_SCAN_TRIGGER_GRACE = 90
 
 
 class BingebaseMonitor(xbmc.Monitor):
@@ -23,9 +29,13 @@ class BingebaseMonitor(xbmc.Monitor):
         self.service.check_token_changed()
 
     def onScanFinished(self, library):
-        if library == 'video' and get_setting_bool('sync_on_library_update'):
-            log('Library scan finished, triggering sync')
-            self.service.trigger_sync()
+        if library != 'video' or not get_setting_bool('sync_on_library_update'):
+            return
+        if self.service.in_startup_grace():
+            log('Library scan finished during startup grace; skipping (startup sync covers this)')
+            return
+        log('Library scan finished, triggering sync')
+        self.service.trigger_sync()
 
 
 class BingebaseService:
@@ -36,6 +46,10 @@ class BingebaseService:
         self.last_sync_time = 0
         self._sync_requested = False
         self._last_known_token = ''
+        self._start_time = 0
+
+    def in_startup_grace(self):
+        return self._start_time > 0 and (time.time() - self._start_time) < LIBRARY_SCAN_TRIGGER_GRACE
 
     def reload_api(self):
         from resources.lib.api import BingebaseAPI
@@ -81,8 +95,13 @@ class BingebaseService:
 
         log('Bingebase service starting')
 
-        self.monitor = BingebaseMonitor(self)
+        self._start_time = time.time()
+        # Capture token BEFORE the monitor exists. Kodi fires onSettingsChanged
+        # during startup as addon settings load; if `_last_known_token` is still
+        # the '' init value when that callback runs, check_token_changed thinks
+        # the token just changed and triggers a duplicate startup sync.
         self._last_known_token = get_setting('access_token')
+        self.monitor = BingebaseMonitor(self)
         self.reload_api()
 
         if not is_connected():

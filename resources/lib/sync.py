@@ -1,3 +1,4 @@
+import calendar
 import time
 import traceback
 
@@ -12,8 +13,19 @@ from resources.lib.utils import (
 
 
 def _to_kodi_datetime(iso_string):
-    """Convert ISO 8601 (e.g. '2025-08-08T18:53:08Z') to Kodi format ('2025-08-08 18:53:08')."""
-    return iso_string.replace('T', ' ').replace('Z', '')
+    """Convert ISO 8601 (e.g. '2025-08-08T18:53:08Z') to Kodi format in
+    LOCAL time (e.g. '2025-08-08 20:53:08' for UTC+2). Kodi stores
+    lastplayed in local time with no timezone marker, so feeding it a
+    raw UTC string causes lastplayed comparisons and exports to drift
+    by the user's UTC offset."""
+    try:
+        t = time.strptime(iso_string, '%Y-%m-%dT%H:%M:%SZ')
+        epoch = calendar.timegm(t)
+    except ValueError:
+        # Already naive/local — assume local epoch.
+        t = time.strptime(iso_string, '%Y-%m-%dT%H:%M:%S')
+        epoch = time.mktime(t)
+    return time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(epoch))
 
 
 def _watched_filter(since_iso=None):
@@ -202,21 +214,22 @@ def export_bingebase_to_kodi(api, since=None):
 
 
 def do_sync(api):
-    notify('Syncing...')
-
     try:
         # Snapshot last-sync BEFORE either direction runs so import and export
         # see the same cutoff. Saved only on full success below.
         last_sync = _get_last_sync_timestamp()
 
         if get_setting_bool('sync_kodi_to_bingebase'):
-            import_kodi_to_bingebase(api, since=last_sync)
+            movies, episodes = import_kodi_to_bingebase(api, since=last_sync)
+            if movies or episodes:
+                notify('Kodi -> Bingebase: {} movies, {} episodes'.format(movies, episodes))
 
         if get_setting_bool('sync_bingebase_to_kodi'):
-            export_bingebase_to_kodi(api, since=last_sync)
+            marked = export_bingebase_to_kodi(api, since=last_sync)
+            if marked:
+                notify('Bingebase -> Kodi: marked {}'.format(marked))
 
         _save_last_sync_timestamp()
-        notify('Sync complete')
 
     except Exception as e:
         log_error('Sync failed: {}: {}'.format(type(e).__name__, e))

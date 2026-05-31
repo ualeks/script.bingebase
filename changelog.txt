@@ -1,8 +1,15 @@
-v1.0.3 (2026-05-30)
+v1.0.4 (2026-05-31)
 - Incremental Kodi-to-Bingebase sync (only items played since last sync)
 - Batch large first-sync imports to avoid timeouts on big libraries
+- Retry transient HTTP errors with backoff
 - Increase HTTP request timeout from 30s to 120s
+- Fix timezone drift when comparing/writing Kodi lastplayed
+- Skip duplicate sync trigger from library scan on startup
+- Show per-direction sync notifications with counts
 - Log exception details on sync failure for easier diagnosis
+
+v1.0.3 (2026-05-30)
+- Incremental Kodi-to-Bingebase sync (initial)
 
 v1.0.2 (2026-01-30)
 - Add news tag and prepare for Kodi repository submission
